@@ -15,6 +15,9 @@ from .tasks import execute_submission
 class CodeExecutionThrottle(UserRateThrottle):
     scope = "code_execution"
 
+# Maximum code size: 100 KB
+MAX_CODE_SIZE = 100 * 1024
+
 class SampleTestCasesView(APIView):
     """Return sample (visible) test cases for a given problem."""
     permission_classes = [AllowAny]
@@ -41,6 +44,13 @@ class CodeRunView(APIView):
             return Response(
                 {"error": "Missing problem_id or code payload attributes."},
                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate code size to prevent DoS
+        if len(code) > MAX_CODE_SIZE:
+            return Response(
+                {"error": f"Code exceeds maximum size of {MAX_CODE_SIZE // 1024}KB"},
+                status=status.HTTP_413_PAYLOAD_TOO_LARGE
             )
 
         problem = get_object_or_404(Problem, id=problem_id)
@@ -88,6 +98,13 @@ class CodeSubmitView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Validate code size to prevent DoS
+        if len(code) > MAX_CODE_SIZE:
+            return Response(
+                {"error": f"Code exceeds maximum size of {MAX_CODE_SIZE // 1024}KB"},
+                status=status.HTTP_413_PAYLOAD_TOO_LARGE
+            )
+
         problem = get_object_or_404(Problem, id=problem_id)
         user = request.user
 
@@ -126,27 +143,16 @@ class CodeSubmitView(APIView):
                 "error_message": "Execution queued. Check back for results."
             }, status=status.HTTP_202_ACCEPTED)
         except Exception as exc:
-            # Fallback to synchronous execution if Celery / Redis broker is unavailable
-            logger.warning(f"Celery task queue unavailable ({exc}), running synchronously")
-            test_cases = problem.test_cases.all().order_by('order', 'id')
-            result = run_submission(language, code, problem, test_cases)
-            submission.status = result["status"]
-            submission.passed_test_cases = result["passed"]
-            submission.total_test_cases = result["total"]
-            submission.runtime = result["runtime"]
-            submission.stdout = result["stdout"]
-            submission.error_message = result["error_message"]
+            # Celery/Redis broker is unavailable - reject request instead of hanging
+            logger.warning(f"Celery task queue unavailable ({exc}), rejecting submission")
+            submission.status = "ERROR"
+            submission.error_message = "Task queue unavailable. Please try again later."
             submission.save()
-
-            return Response({
-                "submission_id": submission.id,
-                "status": submission.status,
-                "passed_test_cases": submission.passed_test_cases,
-                "total_test_cases": submission.total_test_cases,
-                "runtime": submission.runtime,
-                "stdout": submission.stdout,
-                "error_message": submission.error_message
-            }, status=status.HTTP_200_OK)
+            
+            return Response(
+                {"error": "Task queue unavailable. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
 
 
 class SubmissionStatusView(APIView):
@@ -185,6 +191,13 @@ class SavedCodeView(APIView):
         problem = get_object_or_404(Problem, id=problem_id)
         code = request.data.get("code", "")
         language = request.data.get("language", "python")
+
+        # Validate code size
+        if len(code) > MAX_CODE_SIZE:
+            return Response(
+                {"error": f"Code exceeds maximum size of {MAX_CODE_SIZE // 1024}KB"},
+                status=status.HTTP_413_PAYLOAD_TOO_LARGE
+            )
 
         saved, created = SavedCode.objects.update_or_create(
             user=request.user,

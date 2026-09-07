@@ -15,7 +15,7 @@ class ExecutionResult:
     runtime_ms: int
 
 
-LANGAUGE_CONFIGS = {
+LANGUAGE_CONFIGS = {
     "python":{
         "image":"codingprep-sandbox-python",
         "filename": "submission.py",
@@ -61,10 +61,10 @@ def run_submission(language: str, source_code: str, stdin_data: str="") ->Execut
     stdin_data is piped to the program`s stdin
     """
     language = language.lower()
-    if language not in LANGAUGE_CONFIGS:
+    if language not in LANGUAGE_CONFIGS:
         raise ValueError(f"Unsupported language: {language}")
 
-    config = LANGAUGE_CONFIGS[language]
+    config = LANGUAGE_CONFIGS[language]
     run_id = uuid.uuid4().hex[:12]
 
     with tempfile.TemporaryDirectory(prefix=f"submission_{run_id}") as tmpdir:
@@ -79,19 +79,19 @@ def run_submission(language: str, source_code: str, stdin_data: str="") ->Execut
         start = time.perf_counter()
 
         if config["needs_compile"]:
-            complie_result = _docker_run(
+            compile_result = _docker_run(
                 image=config["image"],
                 volume_mount= volume_mount,
                 cmd = config["compile_cmd"],
                 stdin_data = "",
             )
-            if complie_result.returncode != 0:
-                elapsed_ms = int((time.perf_counter()-start))
+            if compile_result.returncode != 0:
+                elapsed_ms = int((time.perf_counter()-start) * 1000)
                 return ExecutionResult(
                     passed=False,
                     stdout="",
-                    stderr=f"Compilation Failed: \n{complie_result.stderr}",
-                    exit_code=complie_result.returncode,
+                    stderr=f"Compilation Failed: \n{compile_result.stderr}",
+                    exit_code=compile_result.returncode,
                     timed_out=False,
                     runtime_ms=elapsed_ms
                 )
@@ -101,7 +101,7 @@ def run_submission(language: str, source_code: str, stdin_data: str="") ->Execut
             cmd=config["run_cmd"],
             stdin_data = stdin_data,
         )
-        elapsed_ms = int((time.perf_counter()-start))
+        elapsed_ms = int((time.perf_counter()-start) * 1000)
         return ExecutionResult(
             passed=(run_result.returncode == 0),
             stdout=run_result.stdout,
@@ -145,6 +145,6 @@ def _docker_run(image:str, volume_mount: str,cmd: list, stdin_data: str) -> _Doc
         return _DockerRunResult(
             returncode=-1,
             stdout="",
-            stderr=f"Execution timed out aftert {CONTAINER_TIMEOUT_SECONDS}s",
+            stderr=f"Execution timed out after {CONTAINER_TIMEOUT_SECONDS}s",
             timed_out=True,
         )
