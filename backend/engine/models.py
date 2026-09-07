@@ -29,12 +29,12 @@ class Submission(models.Model):
         ('TIME_LIMIT_EXCEEDED', 'Time Limit Exceeded'),
         ('RUNTIME_ERROR', 'Runtime Error'),
         ('COMPILE_ERROR', 'Compile Error'),
+        ('ERROR', 'Error')
     ]
 
     LANGUAGE_CHOICES = [
         ('python', 'Python 3'),
-        ('javascript', 'JavaScript'),
-        ('cpp', 'C++'),
+        ('c', 'C'),
         ('java', 'Java'),
     ]
 

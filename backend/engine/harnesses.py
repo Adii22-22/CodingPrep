@@ -14,7 +14,7 @@ because you can't call a typed function with untyped JSON values directly.
 import json
 
 
-SUPPORTED_TYPES = {"int", "long", "double", "boolean", "string", "int[]", "long[], double[]", "string[]"}
+SUPPORTED_TYPES = {"int", "long", "double", "boolean", "string", "int[]", "long[]", "double[]", "string[]"}
 
 
 def build_python_source(user_code: str, function_name: str, parameter_names: list) -> str:
