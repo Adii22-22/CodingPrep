@@ -1,4 +1,4 @@
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
 
 // --- Helper: authenticated fetch ---
 export async function authFetch(url, options = {}) {
@@ -91,13 +91,15 @@ export async function submitCode(problemId, code, language = "python", onStatusU
     return data;
   }
 
-  // If async execution queued (HTTP 202 or RUNNING), poll for completion
+  // If async execution queued (HTTP 202 or RUNNING), poll for completion with exponential backoff
   if (data.submission_id) {
     if (onStatusUpdate) onStatusUpdate(data);
 
-    const maxAttempts = 30; // Max 30 seconds polling
+    const maxAttempts = 30; // Max ~2 minutes with exponential backoff
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Exponential backoff: 1s, 1.5s, 2.25s, ... capped at 10s
+      const delay = Math.min(1000 * Math.pow(1.5, attempt), 10000);
+      await new Promise((resolve) => setTimeout(resolve, delay));
       try {
         const statusData = await getSubmissionStatus(data.submission_id);
         if (onStatusUpdate) onStatusUpdate(statusData);
