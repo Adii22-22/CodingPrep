@@ -3,8 +3,60 @@ import Editor from "@monaco-editor/react";
 import { fetchSampleTestCases, submitCode, runCode, loadSavedCode, saveCode } from "../api";
 import { AuthContext } from "../context/AuthContext";
 
-export default function ProblemView({ problem, onBack }) {
+const LANGUAGES = [
+  { value: "python", label: "Python 3", icon: "🐍", editorLanguage: "python" },
+  { value: "java", label: "Java", icon: "☕", editorLanguage: "java" },
+  { value: "c", label: "C", icon: "ⓒ", editorLanguage: "c" },
+];
+
+function getStarterCode(problem, language) {
+  const fnName = problem.function_name || "solution";
+  const parameterNames = Array.isArray(problem.parameter_names)
+    ? problem.parameter_names
+    : [];
+  const parameterTypes = Array.isArray(problem.parameter_types)
+    ? problem.parameter_types
+    : parameterNames.map(() => "int");
+  const returnType = problem.return_type || "int";
+  const javaTypes = {
+    int: "int",
+    long: "long",
+    double: "double",
+    boolean: "boolean",
+    string: "String",
+    "int[]": "int[]",
+  };
+  const javaReturnType = javaTypes[returnType] || "int";
+  const defaultReturn = {
+    boolean: "false",
+    double: "0.0",
+    string: '""',
+    "int[]": "new int[0]",
+  }[returnType] || "0";
+
+  if (language === "java") {
+    const params = parameterNames
+      .map((name, index) => `${javaTypes[parameterTypes[index]] || "int"} ${name}`)
+      .join(", ");
+    return `import java.util.*;\n\nclass Solution {\n    public static ${javaReturnType} ${fnName}(${params}) {\n        // Write your solution here\n        return ${defaultReturn};\n    }\n}\n`;
+  }
+
+  if (language === "c") {
+    const cTypes = { int: "int", long: "long", double: "double" };
+    const params = parameterNames
+      .map((name, index) => `${cTypes[parameterTypes[index]] || "int"} ${name}`)
+      .join(", ");
+    return `#include <stdio.h>\n\n${returnType} ${fnName}(${params}) {\n    // Write your solution here\n    return 0;\n}\n`;
+  }
+
+  const paramStr = parameterNames.join(", ");
+  return `def ${fnName}(${paramStr}):\n    # Write your solution here\n    pass\n`;
+}
+
+export default function ProblemView({ problem }) {
   const [code, setCode] = useState("");
+  const [language, setLanguage] = useState("python");
+  const codeByLanguage = useRef({});
   const [testCases, setTestCases] = useState([]);
   const [result, setResult] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -30,26 +82,36 @@ export default function ProblemView({ problem, onBack }) {
         setResult(null);
         setActiveResultTab("testcases");
 
-        const fnName = problem.function_name || "solution";
-        const params = problem.parameter_names;
-        const paramStr = Array.isArray(params) && params.length > 0 ? params.join(", ") : "";
-        const defaultCode = `def ${fnName}(${paramStr}):\n    # Write your solution here\n    pass\n`;
+        codeByLanguage.current = {};
+        const defaultCode = getStarterCode(problem, "python");
 
         if (user) {
           try {
             const savedData = await loadSavedCode(problem.id);
             if (isMounted) {
               if (savedData && savedData.code) {
+                const savedLanguage = LANGUAGES.some(
+                  ({ value }) => value === savedData.language
+                )
+                  ? savedData.language
+                  : "python";
+                codeByLanguage.current[savedLanguage] = savedData.code;
+                setLanguage(savedLanguage);
                 setCode(savedData.code);
               } else {
+                setLanguage("python");
                 setCode(defaultCode);
               }
             }
           } catch (e) {
             console.error("Failed to load saved code", e);
-            if (isMounted) setCode(defaultCode);
+            if (isMounted) {
+              setLanguage("python");
+              setCode(defaultCode);
+            }
           }
         } else {
+          setLanguage("python");
           setCode(defaultCode);
         }
       }
@@ -67,11 +129,11 @@ export default function ProblemView({ problem, onBack }) {
     if (!user || !problem || !code) return;
 
     const timerId = setTimeout(() => {
-      saveCode(problem.id, code).catch(err => console.error("Auto-save failed", err));
-    }, 2000); // 2 second debounce
+      saveCode(problem.id, code, language).catch(err => console.error("Auto-save failed", err));
+    }, 2000);
 
     return () => clearTimeout(timerId);
-  }, [code, user, problem]);
+  }, [code, language, user, problem]);
 
   // ─── Fetch sample test cases ───
   useEffect(() => {
@@ -87,9 +149,9 @@ export default function ProblemView({ problem, onBack }) {
     setIsRunning(true);
     setActiveResultTab("result");
     try {
-      const res = await runCode(problem.id, code);
+      const res = await runCode(problem.id, code, language);
       setResult(res);
-    } catch (err) {
+    } catch {
       setResult({
         status: "ERROR",
         error_message: "Network error. Is the backend running?",
@@ -103,10 +165,19 @@ export default function ProblemView({ problem, onBack }) {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setActiveResultTab("result");
+    setResult({
+      status: "RUNNING",
+      passed_test_cases: 0,
+      total_test_cases: 0,
+      runtime: 0,
+      error_message: "Submitting to worker queue...",
+    });
     try {
-      const res = await submitCode(problem.id, code);
+      const res = await submitCode(problem.id, code, language, (statusUpdate) => {
+        setResult(statusUpdate);
+      });
       setResult(res);
-    } catch (err) {
+    } catch {
       setResult({
         status: "ERROR",
         error_message: "Network error. Is the backend running?",
@@ -117,6 +188,14 @@ export default function ProblemView({ problem, onBack }) {
   };
 
   const isBusy = isRunning || isSubmitting;
+
+  const handleLanguageChange = (nextLanguage) => {
+    codeByLanguage.current[language] = code;
+    const nextCode =
+      codeByLanguage.current[nextLanguage] || getStarterCode(problem, nextLanguage);
+    setLanguage(nextLanguage);
+    setCode(nextCode);
+  };
 
   // ─── Vertical Drag (left/right panels) ───
   const handleVerticalDragStart = useCallback((e) => {
@@ -204,36 +283,15 @@ export default function ProblemView({ problem, onBack }) {
         {/* Problem Header */}
         <div
           style={{
-            padding: "20px 28px 0",
+            padding: "20px 28px",
             borderBottom: "1px solid #1e1e1e",
           }}
         >
-          <button
-            onClick={onBack}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#666",
-              cursor: "pointer",
-              fontSize: "13px",
-              padding: "0 0 16px 0",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              transition: "color 0.2s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#aaa")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#666")}
-          >
-            ← Back
-          </button>
-
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: "14px",
-              paddingBottom: "20px",
             }}
           >
             <h2 style={{ margin: 0, color: "#fff", fontSize: "22px" }}>
@@ -423,7 +481,10 @@ export default function ProblemView({ problem, onBack }) {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span
+            <select
+              value={language}
+              onChange={(e) => handleLanguageChange(e.target.value)}
+              disabled={isBusy}
               style={{
                 backgroundColor: "#1a1a1a",
                 border: "1px solid #2a2a2a",
@@ -432,10 +493,15 @@ export default function ProblemView({ problem, onBack }) {
                 color: "#ccc",
                 fontSize: "13px",
                 fontWeight: "500",
+                cursor: isBusy ? "not-allowed" : "pointer",
               }}
             >
-              🐍 Python 3
-            </span>
+              {LANGUAGES.map(({ value, label, icon }) => (
+                <option key={value} value={value}>
+                  {icon} {label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* ─── Run + Submit Buttons (always visible) ─── */}
@@ -542,7 +608,7 @@ export default function ProblemView({ problem, onBack }) {
         <div style={{ height: `${editorHeight}%`, minHeight: "100px" }}>
           <Editor
             height="100%"
-            language="python"
+            language={LANGUAGES.find((item) => item.value === language).editorLanguage}
             theme="vs-dark"
             value={code}
             onChange={(val) => setCode(val || "")}
@@ -746,7 +812,7 @@ export default function ProblemView({ problem, onBack }) {
                             fontSize: "13px",
                           }}
                         >
-                          Runtime: {(result.runtime * 1000).toFixed(1)}ms
+                          Runtime: {result.runtime.toFixed(1)}ms
                         </span>
                       )}
                     </div>

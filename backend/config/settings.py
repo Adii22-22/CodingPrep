@@ -16,6 +16,10 @@ from decouple import config
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Celery configuration
+CELERY_BROKER_URL = config('REDIS_URL', default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = config('REDIS_URL', default='redis://localhost:6379/0')
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -24,9 +28,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config("DEBUG", cast=bool)
+DEBUG = config("DEBUG", default=True, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -81,6 +85,18 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+
+import os
+
+# Safety check: Fail early if db.sqlite3 is detected in production
+SQLITE_DB_PATH = BASE_DIR / 'db.sqlite3'
+if SQLITE_DB_PATH.exists() and not DEBUG:
+    raise RuntimeError(
+        "SECURITY: SQLite database (db.sqlite3) found in production environment. "
+        "This violates the production database policy. "
+        "Ensure PostgreSQL is configured via DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT env vars. "
+        "Delete db.sqlite3 and restart."
+    )
 
 DATABASES = {
     "default": {
@@ -147,6 +163,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+        'DEFAULT_THROTTLE_RATES': {
+        'code_execution': '30/min',
+    }
 }
 
 from datetime import timedelta

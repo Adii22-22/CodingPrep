@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function ReadingView({ topic, topics, onBack, onSelectTopic }) {
+export default function ReadingView({ topic, topics, onSelectTopic, categoryTitle }) {
   const [hoveredId, setHoveredId] = useState(null);
 
   return (
@@ -24,22 +24,6 @@ export default function ReadingView({ topic, topics, onBack, onSelectTopic }) {
           overflowY: "auto",
         }}
       >
-        <button
-          onClick={onBack}
-          style={{
-            backgroundColor: "transparent",
-            color: "#aaa",
-            border: "none",
-            cursor: "pointer",
-            marginBottom: "30px",
-            fontSize: "14px",
-            transition: "color 0.2s",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#fff")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#aaa")}
-        >
-          ← Back to Dashboard
-        </button>
         <div
           style={{
             color: "#888",
@@ -48,7 +32,7 @@ export default function ReadingView({ topic, topics, onBack, onSelectTopic }) {
             marginBottom: "20px",
           }}
         >
-          PILLAR
+          CURRICULUM
         </div>
         <div
           style={{
@@ -58,7 +42,7 @@ export default function ReadingView({ topic, topics, onBack, onSelectTopic }) {
             marginBottom: "30px",
           }}
         >
-          {"</>"} DSA
+          {categoryTitle || "Topics"}
         </div>
 
         <div
@@ -69,7 +53,7 @@ export default function ReadingView({ topic, topics, onBack, onSelectTopic }) {
             marginBottom: "15px",
           }}
         >
-          Data Structures
+          Topics
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {topics.map((t) => {

@@ -39,7 +39,7 @@ def generate_chat_response(problem, chat_history, current_code, new_message):
     chat_history: list of dicts like [{"role": "user"|"model", "content": "..."}]
     """
     if not api_key:
-        return "⚠️ *Gemini API Key is missing. Please configure GEMINI_API_KEY in the backend .env file to enable the AI Interviewer.*"
+        return " *Gemini API Key is missing. Please configure GEMINI_API_KEY in the backend .env file to enable the AI Interviewer.*"
 
     # Construct the model
     model = genai.GenerativeModel(
@@ -73,7 +73,7 @@ def generate_interview_grade(transcript):
     Takes the full interview transcript and generates a grade and feedback.
     """
     if not api_key:
-        return "⚠️ *Gemini API Key is missing.*"
+        return "*Gemini API Key is missing.*"
 
     grading_prompt = f"""
     You are an expert technical interviewer evaluating a candidate's performance across one or more coding problems.
@@ -90,7 +90,7 @@ def generate_interview_grade(transcript):
     """
     
     try:
-        model = genai.GenerativeModel("gemini-2.5-pro")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         response = model.generate_content(grading_prompt)
         return response.text
     except Exception as e:

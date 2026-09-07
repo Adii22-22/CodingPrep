@@ -71,33 +71,31 @@ export default function ProfilePage({ onProblemClick }) {
 
               {/* Difficulty Breakdown */}
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "15px" }}>
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px", fontSize: "13px" }}>
-                    <span style={{ color: "#22c55e" }}>Easy</span>
-                    <span style={{ color: "#fff", fontWeight: "bold" }}>{profile.easy_solved}</span>
-                  </div>
-                  <div style={{ height: "6px", backgroundColor: "#1a1a1a", borderRadius: "3px", overflow: "hidden" }}>
-                    <div style={{ width: "100%", height: "100%", backgroundColor: "#22c55e", borderRadius: "3px" }} />
-                  </div>
-                </div>
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px", fontSize: "13px" }}>
-                    <span style={{ color: "#eab308" }}>Medium</span>
-                    <span style={{ color: "#fff", fontWeight: "bold" }}>{profile.medium_solved}</span>
-                  </div>
-                  <div style={{ height: "6px", backgroundColor: "#1a1a1a", borderRadius: "3px", overflow: "hidden" }}>
-                    <div style={{ width: "100%", height: "100%", backgroundColor: "#eab308", borderRadius: "3px" }} />
-                  </div>
-                </div>
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px", fontSize: "13px" }}>
-                    <span style={{ color: "#ef4444" }}>Hard</span>
-                    <span style={{ color: "#fff", fontWeight: "bold" }}>{profile.hard_solved}</span>
-                  </div>
-                  <div style={{ height: "6px", backgroundColor: "#1a1a1a", borderRadius: "3px", overflow: "hidden" }}>
-                    <div style={{ width: "100%", height: "100%", backgroundColor: "#ef4444", borderRadius: "3px" }} />
-                  </div>
-                </div>
+                {(() => {
+                  const maxSolved = Math.max(profile.easy_solved, profile.medium_solved, profile.hard_solved, 1);
+                  const difficulties = [
+                    { label: "Easy", color: "#22c55e", count: profile.easy_solved },
+                    { label: "Medium", color: "#eab308", count: profile.medium_solved },
+                    { label: "Hard", color: "#ef4444", count: profile.hard_solved },
+                  ];
+                  return difficulties.map(({ label, color, count }) => (
+                    <div key={label}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px", fontSize: "13px" }}>
+                        <span style={{ color }}>{label}</span>
+                        <span style={{ color: "#fff", fontWeight: "bold" }}>{count}</span>
+                      </div>
+                      <div style={{ height: "6px", backgroundColor: "#1a1a1a", borderRadius: "3px", overflow: "hidden" }}>
+                        <div style={{
+                          width: `${(count / maxSolved) * 100}%`,
+                          height: "100%",
+                          backgroundColor: color,
+                          borderRadius: "3px",
+                          transition: "width 0.6s ease",
+                        }} />
+                      </div>
+                    </div>
+                  ));
+                })()}
               </div>
 
             </div>

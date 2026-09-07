@@ -1,7 +1,7 @@
 import React, { useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 
-export default function Navbar({ activeTab, setActiveTab }) {
+export default function Navbar({ activeTab, onNavigate }) {
   const { user, logout } = useContext(AuthContext);
 
   const tabs = [
@@ -30,7 +30,7 @@ export default function Navbar({ activeTab, setActiveTab }) {
       {/* Left Side: Logo and Working Tabs */}
       <div style={{ display: "flex", alignItems: "center", gap: "30px" }}>
         <h2
-          onClick={() => setActiveTab("learn")}
+          onClick={() => onNavigate("learn")}
           style={{
             margin: 0,
             color: "#22c55e",
@@ -48,7 +48,7 @@ export default function Navbar({ activeTab, setActiveTab }) {
             return (
               <span
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => onNavigate(tab.key)}
                 style={{
                   color: isActive ? "#fff" : "#aaa",
                   backgroundColor: isActive ? "#222" : "transparent",
@@ -69,30 +69,16 @@ export default function Navbar({ activeTab, setActiveTab }) {
 
       {/* Right Side */}
       <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
-        <button
-          style={{
-            padding: "6px 16px",
-            borderRadius: "20px",
-            backgroundColor: "transparent",
-            color: "#fff",
-            border: "1px solid #444",
-            cursor: "pointer",
-            fontSize: "14px",
-          }}
-        >
-          + Mentor
-        </button>
-        
         {user ? (
           <div style={{ position: "relative", display: "flex", alignItems: "center", gap: "15px" }}>
-            <span 
-              onClick={() => setActiveTab("profile")}
+            <span
+              onClick={() => onNavigate("profile")}
               style={{ cursor: "pointer", fontSize: "14px", color: "#ddd", fontWeight: "bold" }}
             >
               {user.username}
             </span>
             <div
-              onClick={() => setActiveTab("profile")}
+              onClick={() => onNavigate("profile")}
               style={{
                 width: "32px",
                 height: "32px",
@@ -111,11 +97,16 @@ export default function Navbar({ activeTab, setActiveTab }) {
             <button
               onClick={() => {
                 logout();
-                setActiveTab("login");
+                onNavigate("login");
               }}
               style={{
-                background: "transparent", border: "1px solid #444", color: "#aaa", padding: "6px 12px",
-                borderRadius: "6px", cursor: "pointer", fontSize: "12px"
+                background: "transparent",
+                border: "1px solid #444",
+                color: "#aaa",
+                padding: "6px 12px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "12px",
               }}
             >
               Logout
@@ -124,19 +115,30 @@ export default function Navbar({ activeTab, setActiveTab }) {
         ) : (
           <div style={{ display: "flex", gap: "10px" }}>
             <button
-              onClick={() => setActiveTab("login")}
+              onClick={() => onNavigate("login")}
               style={{
-                padding: "6px 16px", borderRadius: "20px", backgroundColor: "transparent",
-                color: "#fff", border: "none", cursor: "pointer", fontSize: "14px"
+                padding: "6px 16px",
+                borderRadius: "20px",
+                backgroundColor: "transparent",
+                color: "#fff",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "14px",
               }}
             >
               Login
             </button>
             <button
-              onClick={() => setActiveTab("register")}
+              onClick={() => onNavigate("register")}
               style={{
-                padding: "6px 16px", borderRadius: "20px", backgroundColor: "#22c55e",
-                color: "#000", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: "bold"
+                padding: "6px 16px",
+                borderRadius: "20px",
+                backgroundColor: "#22c55e",
+                color: "#000",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "bold",
               }}
             >
               Sign Up

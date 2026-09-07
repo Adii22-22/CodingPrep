@@ -1,8 +1,19 @@
 from django.urls import path
-from .views import CodeSubmitView, CodeRunView, SampleTestCasesView, SavedCodeView, InterviewStartView, InterviewChatView, InterviewNextProblemView, InterviewGradeView
+from .views import (
+    CodeSubmitView,
+    SubmissionStatusView,
+    CodeRunView,
+    SampleTestCasesView,
+    SavedCodeView,
+    InterviewStartView,
+    InterviewChatView,
+    InterviewNextProblemView,
+    InterviewGradeView,
+)
 
 urlpatterns = [
     path('submit/', CodeSubmitView.as_view(), name='code-submit'),
+    path('submission/<int:submission_id>/', SubmissionStatusView.as_view(), name='submission-status'),
     path('run/', CodeRunView.as_view(), name='code-run'),
     path('testcases/<int:problem_id>/', SampleTestCasesView.as_view(), name='sample-testcases'),
     path('saved-code/<int:problem_id>/', SavedCodeView.as_view(), name='saved-code'),

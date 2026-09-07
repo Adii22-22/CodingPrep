@@ -8,6 +8,7 @@ export default function AIChatWidget({ aiMessage, onSendMessage, isLoading }) {
   const [isRecording, setIsRecording] = useState(false);
   
   const recognitionRef = useRef(null);
+  const widgetRef = useRef(null);
 
   useEffect(() => {
     // Initialize SpeechRecognition
@@ -62,8 +63,8 @@ export default function AIChatWidget({ aiMessage, onSendMessage, isLoading }) {
   };
 
   return (
-    <Draggable handle=".drag-handle">
-      <div style={{
+    <Draggable handle=".drag-handle" nodeRef={widgetRef}>
+      <div ref={widgetRef} style={{
         position: "fixed",
         bottom: "40px",
         right: "40px",
@@ -86,6 +87,7 @@ export default function AIChatWidget({ aiMessage, onSendMessage, isLoading }) {
           alignItems: "center",
           gap: "10px",
           cursor: "grab",
+          userSelect: "none",
         }}>
           {/* Drag dots icon */}
           <div style={{ display: "flex", flexDirection: "column", gap: "2px", opacity: 0.5 }}>
@@ -95,7 +97,7 @@ export default function AIChatWidget({ aiMessage, onSendMessage, isLoading }) {
           </div>
           
           <div style={{ color: "#22c55e", fontSize: "12px", fontWeight: "bold", letterSpacing: "1px", flex: 1 }}>
-            ✨ AI INTERVIEWER
+            AI INTERVIEWER
           </div>
           
           <button 
@@ -209,10 +211,6 @@ export default function AIChatWidget({ aiMessage, onSendMessage, isLoading }) {
           </>
         )}
         <style>{`
-          @keyframes pulse {
-            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
-          }
           .wave-bar {
             width: 4px; height: 12px; background-color: #ef4444; border-radius: 2px;
             animation: wave 1s ease-in-out infinite;

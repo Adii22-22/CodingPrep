@@ -68,7 +68,13 @@ export async function fetchSampleTestCases(problemId) {
 }
 
 // --- Engine ---
-export async function submitCode(problemId, code, language = "python") {
+export async function getSubmissionStatus(submissionId) {
+  const res = await authFetch(`${API_BASE}/api/engine/submission/${submissionId}/`);
+  if (!res.ok) throw new Error("Failed to check submission status");
+  return res.json();
+}
+
+export async function submitCode(problemId, code, language = "python", onStatusUpdate = null) {
   const res = await authFetch(`${API_BASE}/api/engine/submit/`, {
     method: "POST",
     body: JSON.stringify({
@@ -78,16 +84,43 @@ export async function submitCode(problemId, code, language = "python") {
     }),
   });
   if (!res.ok) throw new Error("Submission failed");
-  return res.json();
+  const data = await res.json();
+
+  // If completed synchronously, return immediately
+  if (data.status && data.status !== "RUNNING" && data.status !== "PENDING") {
+    return data;
+  }
+
+  // If async execution queued (HTTP 202 or RUNNING), poll for completion
+  if (data.submission_id) {
+    if (onStatusUpdate) onStatusUpdate(data);
+
+    const maxAttempts = 30; // Max 30 seconds polling
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      try {
+        const statusData = await getSubmissionStatus(data.submission_id);
+        if (onStatusUpdate) onStatusUpdate(statusData);
+
+        if (statusData.status && statusData.status !== "RUNNING" && statusData.status !== "PENDING") {
+          return statusData;
+        }
+      } catch (err) {
+        console.warn("Polling error on attempt", attempt, err);
+      }
+    }
+  }
+
+  return data;
 }
 
-export async function runCode(problemId, code) {
-  const res = await fetch(`${API_BASE}/api/engine/run/`, {
+export async function runCode(problemId, code, language = "python") {
+  const res = await authFetch(`${API_BASE}/api/engine/run/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       problem_id: problemId,
       code: code,
+      language: language,
     }),
   });
   if (!res.ok) throw new Error("Run failed");

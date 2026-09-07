@@ -86,6 +86,8 @@ class Problem(models.Model):
         help_text="List of parameter names for the function signature, e.g. [\"nums\", \"target\"]. "
                   "These must match the keys in each TestCase's input_data JSON."
     )
+    parameter_types = models.JSONField(default=list, blank=True)
+    return_type = models.CharField(max_length=20, default='int')
     is_special = models.BooleanField(default=False)
 
     def __str__(self):

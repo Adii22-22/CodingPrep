@@ -2,12 +2,18 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.throttling import UserRateThrottle
 from django.shortcuts import get_object_or_404
 from curriculum.models import Problem
 from .models import Submission, TestCase, SavedCode
-from .runner import run_python_submission
+from .grader import run_submission
 from .serializers import SampleTestCaseSerializer, SavedCodeSerializer
 from .ai_interviewer import start_interview, generate_chat_response, generate_interview_grade
+from .tasks import execute_submission
+
+
+class CodeExecutionThrottle(UserRateThrottle):
+    scope = "code_execution"
 
 class SampleTestCasesView(APIView):
     """Return sample (visible) test cases for a given problem."""
@@ -23,11 +29,13 @@ class SampleTestCasesView(APIView):
 class CodeRunView(APIView):
     """Run code against SAMPLE test cases only (no submission record saved).
     This powers the 'Run' button — quick feedback without affecting stats."""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [CodeExecutionThrottle]
 
     def post(self, request):
         problem_id = request.data.get("problem_id")
         code = request.data.get("code")
+        language = request.data.get("language","python")
 
         if not problem_id or not code:
             return Response(
@@ -36,9 +44,8 @@ class CodeRunView(APIView):
             )
 
         problem = get_object_or_404(Problem, id=problem_id)
-        function_name = problem.function_name
+        
 
-        # Only run against sample test cases
         sample_cases = problem.test_cases.filter(is_sample=True).order_by('order', 'id')
 
         if not sample_cases.exists():
@@ -51,7 +58,7 @@ class CodeRunView(APIView):
                 "error_message": "No sample test cases configured for this problem."
             })
 
-        result = run_python_submission(code, function_name, sample_cases)
+        result = run_submission(language,code, problem, sample_cases)
 
         return Response({
             "status": result["status"],
@@ -63,8 +70,12 @@ class CodeRunView(APIView):
         })
 
 
+import logging
+logger = logging.getLogger(__name__)
+
 class CodeSubmitView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [CodeExecutionThrottle]
 
     def post(self, request):
         problem_id = request.data.get("problem_id")
@@ -89,27 +100,10 @@ class CodeSubmitView(APIView):
             status='PENDING'
         )
 
-        # Update status to RUNNING immediately
+        # Update status to RUNNING and auto-save code
         submission.status = "RUNNING"
         submission.save(update_fields=["status"])
 
-        # Fetch test cases and target function name
-        test_cases = problem.test_cases.all().order_by('order', 'id')
-        function_name = problem.function_name
-
-        # Execute the code
-        result = run_python_submission(code, function_name, test_cases)
-
-        # Save results
-        submission.status = result["status"]
-        submission.passed_test_cases = result["passed"]
-        submission.total_test_cases = result["total"]
-        submission.runtime = result["runtime"]
-        submission.stdout = result["stdout"]
-        submission.error_message = result["error_message"]
-        submission.save()
-
-        # Auto-save the code for persistence (like LeetCode)
         SavedCode.objects.update_or_create(
             user=user,
             problem=problem,
@@ -119,6 +113,48 @@ class CodeSubmitView(APIView):
             }
         )
 
+        # Queue async task to execute code via Celery (non-blocking)
+        try:
+            execute_submission.delay(submission.id)
+            return Response({
+                "submission_id": submission.id,
+                "status": submission.status,
+                "passed_test_cases": 0,
+                "total_test_cases": 0,
+                "runtime": 0,
+                "stdout": "",
+                "error_message": "Execution queued. Check back for results."
+            }, status=status.HTTP_202_ACCEPTED)
+        except Exception as exc:
+            # Fallback to synchronous execution if Celery / Redis broker is unavailable
+            logger.warning(f"Celery task queue unavailable ({exc}), running synchronously")
+            test_cases = problem.test_cases.all().order_by('order', 'id')
+            result = run_submission(language, code, problem, test_cases)
+            submission.status = result["status"]
+            submission.passed_test_cases = result["passed"]
+            submission.total_test_cases = result["total"]
+            submission.runtime = result["runtime"]
+            submission.stdout = result["stdout"]
+            submission.error_message = result["error_message"]
+            submission.save()
+
+            return Response({
+                "submission_id": submission.id,
+                "status": submission.status,
+                "passed_test_cases": submission.passed_test_cases,
+                "total_test_cases": submission.total_test_cases,
+                "runtime": submission.runtime,
+                "stdout": submission.stdout,
+                "error_message": submission.error_message
+            }, status=status.HTTP_200_OK)
+
+
+class SubmissionStatusView(APIView):
+    """Check the status and results of an asynchronous code submission."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, submission_id):
+        submission = get_object_or_404(Submission, id=submission_id, user=request.user)
         return Response({
             "submission_id": submission.id,
             "status": submission.status,
@@ -126,8 +162,8 @@ class CodeSubmitView(APIView):
             "total_test_cases": submission.total_test_cases,
             "runtime": submission.runtime,
             "stdout": submission.stdout,
-            "error_message": submission.error_message
-        }, status=status.HTTP_200_OK)
+            "error_message": submission.error_message,
+        })
 
 
 class SavedCodeView(APIView):
