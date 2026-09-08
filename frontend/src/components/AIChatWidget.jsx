@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Draggable from "react-draggable";
 import ReactMarkdown from "react-markdown";
 
@@ -129,7 +129,7 @@ export default function AIChatWidget({ aiMessage, onSendMessage, isLoading }) {
               ) : (
                 <ReactMarkdown
                   components={{
-                    code({node, inline, className, children, ...props}) {
+                    code({ inline, children, ...props }) {
                       return inline ? (
                         <code style={{backgroundColor: "#333", padding: "2px 6px", borderRadius: "4px"}} {...props}>
                           {children}

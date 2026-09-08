@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useContext } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Editor from "@monaco-editor/react";
 import { startInterview, sendInterviewChat, getNextProblemPrompt, gradeInterview, runCode, submitCode } from "../api";
-import { AuthContext } from "../context/AuthContext";
 import AIChatWidget from "./AIChatWidget";
 import ReactMarkdown from "react-markdown";
 
@@ -75,7 +74,7 @@ const reportComponents = {
       {children}
     </blockquote>
   ),
-  code({ node, inline, className, children, ...props }) {
+  code({ inline, children, ...props }) {
     return inline ? (
       <code style={{
         backgroundColor: "rgba(34,197,94,0.12)", padding: "2px 8px",
@@ -128,7 +127,12 @@ export default function InterviewView({ level = "easy" }) {
   const containerRef = useRef(null);
   const isDraggingV = useRef(false);
 
-  const { user } = useContext(AuthContext);
+  const setupCodeEditor = useCallback((prob) => {
+    const fnName = prob.function_name || "solution";
+    const params = prob.parameter_names;
+    const paramStr = Array.isArray(params) && params.length > 0 ? params.join(", ") : "";
+    setCode(`def ${fnName}(${paramStr}):\n    # Write your solution here\n    pass\n`);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -149,14 +153,7 @@ export default function InterviewView({ level = "easy" }) {
       }
     });
     return () => { isMounted = false; };
-  }, [level]);
-
-  const setupCodeEditor = (prob) => {
-    const fnName = prob.function_name || "solution";
-    const params = prob.parameter_names;
-    const paramStr = Array.isArray(params) && params.length > 0 ? params.join(", ") : "";
-    setCode(`def ${fnName}(${paramStr}):\n    # Write your solution here\n    pass\n`);
-  };
+  }, [level, setupCodeEditor]);
 
   const advanceToNextOrGrade = async (currentTranscript) => {
     if (currentIndex + 1 < problems.length) {
@@ -169,7 +166,7 @@ export default function InterviewView({ level = "easy" }) {
         setAiMessage(res.initial_message);
         setChatHistory([{ role: "model", content: res.initial_message }]);
         setFullTranscript(currentTranscript + `\n\n[Problem ${currentIndex + 2}: ${nextProb.title}]\nAI: ${res.initial_message}\n`);
-      } catch (err) {
+      } catch {
         setAiMessage("Failed to load next problem.");
       } finally {
         setIsAiTyping(false);
@@ -180,7 +177,7 @@ export default function InterviewView({ level = "easy" }) {
       try {
         const res = await gradeInterview(currentTranscript);
         setGradeReport(res.grade_report);
-      } catch (err) {
+      } catch {
         setGradeReport("Failed to generate grading report.");
       } finally {
         setIsAiTyping(false);
@@ -213,7 +210,7 @@ export default function InterviewView({ level = "easy" }) {
         setTimeout(() => advanceToNextOrGrade(currentTranscript), 3000);
       }
       
-    } catch (err) {
+    } catch {
       setAiMessage("Error communicating with AI. Please try again.");
     } finally {
       setIsAiTyping(false);

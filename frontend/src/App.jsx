@@ -124,7 +124,6 @@ export default function App() {
 
   // ─── Fetch categories, then apply the initial route ───
   useEffect(() => {
-    setLoading(true);
     fetchCategories()
       .then((data) => {
         setCategories(data);

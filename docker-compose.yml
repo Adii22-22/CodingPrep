@@ -60,7 +60,8 @@ services:
     restart: unless-stopped
     command: celery -A config worker --loglevel=info
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -100,6 +101,5 @@ services:
 
 volumes:
   postgres_data:
-
 
 
