@@ -2,6 +2,7 @@ from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from .serializers import RegisterSerializer, ProfileSerializer, UserSerializer
@@ -9,9 +10,14 @@ from engine.serializers import SubmissionSerializer
 from engine.models import Submission
 
 
+class AuthenticationThrottle(AnonRateThrottle):
+    scope = "authentication"
+
+
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [AuthenticationThrottle]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -42,6 +48,7 @@ class RegisterView(generics.CreateAPIView):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [AuthenticationThrottle]
 
     def post(self, request):
         username = request.data.get("username")

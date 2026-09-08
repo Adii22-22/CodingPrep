@@ -15,8 +15,17 @@ from .tasks import execute_submission
 class CodeExecutionThrottle(UserRateThrottle):
     scope = "code_execution"
 
+
+class AIInterviewThrottle(UserRateThrottle):
+    scope = "ai_interview"
+
+
 # Maximum code size: 100 KB
 MAX_CODE_SIZE = 100 * 1024
+MAX_INTERVIEW_MESSAGE_SIZE = 10 * 1024
+MAX_INTERVIEW_HISTORY_ITEMS = 50
+MAX_INTERVIEW_TRANSCRIPT_SIZE = 50 * 1024
+SUPPORTED_LANGUAGES = {"python", "java", "c"}
 
 class SampleTestCasesView(APIView):
     """Return sample (visible) test cases for a given problem."""
@@ -40,7 +49,7 @@ class CodeRunView(APIView):
         code = request.data.get("code")
         language = request.data.get("language","python")
 
-        if not problem_id or not code:
+        if not problem_id or not isinstance(code, str) or not code:
             return Response(
                 {"error": "Missing problem_id or code payload attributes."},
                 status=status.HTTP_400_BAD_REQUEST
@@ -52,6 +61,9 @@ class CodeRunView(APIView):
                 {"error": f"Code exceeds maximum size of {MAX_CODE_SIZE // 1024}KB"},
                 status=status.HTTP_413_PAYLOAD_TOO_LARGE
             )
+
+        if language not in SUPPORTED_LANGUAGES:
+            return Response({"error": "Unsupported language."}, status=status.HTTP_400_BAD_REQUEST)
 
         problem = get_object_or_404(Problem, id=problem_id)
         
@@ -92,7 +104,7 @@ class CodeSubmitView(APIView):
         code = request.data.get("code")
         language = request.data.get("language", "python")
 
-        if not problem_id or not code:
+        if not problem_id or not isinstance(code, str) or not code:
             return Response(
                 {"error": "Missing problem_id or code payload attributes."}, 
                 status=status.HTTP_400_BAD_REQUEST
@@ -104,6 +116,9 @@ class CodeSubmitView(APIView):
                 {"error": f"Code exceeds maximum size of {MAX_CODE_SIZE // 1024}KB"},
                 status=status.HTTP_413_PAYLOAD_TOO_LARGE
             )
+
+        if language not in SUPPORTED_LANGUAGES:
+            return Response({"error": "Unsupported language."}, status=status.HTTP_400_BAD_REQUEST)
 
         problem = get_object_or_404(Problem, id=problem_id)
         user = request.user
@@ -193,11 +208,15 @@ class SavedCodeView(APIView):
         language = request.data.get("language", "python")
 
         # Validate code size
+        if not isinstance(code, str):
+            return Response({"error": "Code must be text."}, status=status.HTTP_400_BAD_REQUEST)
         if len(code) > MAX_CODE_SIZE:
             return Response(
                 {"error": f"Code exceeds maximum size of {MAX_CODE_SIZE // 1024}KB"},
                 status=status.HTTP_413_PAYLOAD_TOO_LARGE
             )
+        if language not in SUPPORTED_LANGUAGES:
+            return Response({"error": "Unsupported language."}, status=status.HTTP_400_BAD_REQUEST)
 
         saved, created = SavedCode.objects.update_or_create(
             user=request.user,
@@ -213,6 +232,7 @@ class SavedCodeView(APIView):
 class InterviewStartView(APIView):
     """Start an AI mock interview by returning problems based on level and the first AI message."""
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AIInterviewThrottle]
 
     def post(self, request):
         level = request.data.get("level", "easy")
@@ -260,12 +280,22 @@ class InterviewStartView(APIView):
 class InterviewChatView(APIView):
     """Handle chat interaction with the AI interviewer."""
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AIInterviewThrottle]
 
     def post(self, request):
         problem_id = request.data.get("problem_id")
         chat_history = request.data.get("chat_history", [])
         current_code = request.data.get("current_code", "")
         new_message = request.data.get("new_message", "")
+
+        if not isinstance(chat_history, list) or len(chat_history) > MAX_INTERVIEW_HISTORY_ITEMS:
+            return Response({"error": "Invalid or oversized chat history."}, status=status.HTTP_400_BAD_REQUEST)
+        if not all(isinstance(message, dict) for message in chat_history):
+            return Response({"error": "Invalid chat history."}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(current_code, str) or not isinstance(new_message, str):
+            return Response({"error": "Interview content must be text."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(current_code) > MAX_CODE_SIZE or len(new_message) > MAX_INTERVIEW_MESSAGE_SIZE:
+            return Response({"error": "Interview content is too large."}, status=status.HTTP_413_PAYLOAD_TOO_LARGE)
 
         problem = get_object_or_404(Problem, id=problem_id)
         
@@ -276,6 +306,7 @@ class InterviewChatView(APIView):
 class InterviewNextProblemView(APIView):
     """Get the initial AI prompt for the next problem in the sequence."""
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AIInterviewThrottle]
 
     def get(self, request, problem_id):
         problem = get_object_or_404(Problem, id=problem_id)
@@ -287,11 +318,14 @@ class InterviewNextProblemView(APIView):
 class InterviewGradeView(APIView):
     """Grade an interview transcript."""
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AIInterviewThrottle]
     
     def post(self, request):
         transcript = request.data.get("transcript", "")
         if not transcript:
             return Response({"error": "Missing transcript."}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(transcript, str) or len(transcript) > MAX_INTERVIEW_TRANSCRIPT_SIZE:
+            return Response({"error": "Interview transcript is too large."}, status=status.HTTP_413_PAYLOAD_TOO_LARGE)
             
         grade_text = generate_interview_grade(transcript)
         return Response({"grade_report": grade_text})

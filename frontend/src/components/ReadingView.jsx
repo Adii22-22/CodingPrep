@@ -114,7 +114,6 @@ export default function ReadingView({ topic, topics, onSelectTopic, categoryTitl
             alignItems: "center",
           }}
         >
-          <span>August 24, 2026</span> | <span>5 min read</span>
           <span
             style={{
               border: "1px solid #333",
@@ -128,7 +127,7 @@ export default function ReadingView({ topic, topics, onSelectTopic, categoryTitl
           </span>
         </div>
 
-        {topic.lessons?.map((lesson) => (
+        {topic.lessons?.length ? topic.lessons.map((lesson) => (
           <div key={lesson.id} id={`lesson-${lesson.id}`} style={{ marginBottom: "40px" }}>
             <h2
               style={{
@@ -150,7 +149,11 @@ export default function ReadingView({ topic, topics, onSelectTopic, categoryTitl
               {lesson.content}
             </p>
           </div>
-        ))}
+        )) : (
+          <p style={{ color: "#aaa", fontSize: "18px", lineHeight: "1.7" }}>
+            This lesson is being updated. Please check back soon.
+          </p>
+        )}
       </div>
 
       {/* Column 3: Table of Contents (Right Side) */}

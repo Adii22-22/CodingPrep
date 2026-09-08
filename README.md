@@ -1,105 +1,116 @@
 # CodingPrep
 
-A full-stack web application for coding interview preparation combining structured learning paths, real-time code execution in sandboxed environments, and AI-powered mock interviews.
+CodingPrep is a full-stack application for coding-interview practice. It
+combines a structured curriculum, browser-based code editing, Docker-based
+code execution, and Gemini-powered mock interviews.
 
-## Overview
+## Features
 
-CodingPrep provides:
-- **Structured Curriculum** - Organized learning paths from fundamentals to advanced topics
-- **Real-Time Code Editor** - Monaco editor with Python, Java, and C support
-- **Instant Code Execution** - Run and submit solutions with immediate feedback
-- **AI Mock Interviews** - Google Gemini-powered conversational interviewer
-- **Progress Tracking** - Auto-save code and track submission history
-- **Secure Sandboxing** - Docker-based isolated execution with resource limits
+- Structured categories, topics, lessons, and coding problems
+- Monaco editor with Python, Java, and C support
+- Sample runs and asynchronous submissions through Celery
+- Progress tracking, saved code, and submission history
+- Gemini-powered mock interviews
+- Resource-limited Docker sandboxes for submitted code
 
-## Tech Stack
+## Tech stack
 
-**Frontend:**
-- React 19 with Vite
-- Monaco Editor
-- Context API for authentication
+- Frontend: React 19, Vite, Monaco Editor
+- Backend: Django 5.2, Django REST Framework, JWT authentication
+- Data and async work: PostgreSQL, Redis, Celery
+- Deployment: Docker Compose, Nginx, Gunicorn
+- AI: Google Gemini
 
-**Backend:**
-- Django 5.2 + Django REST Framework
-- PostgreSQL
-- Redis + Celery (async task queue)
-- Google Generative AI (Gemini)
-- Docker (code execution sandboxes)
+## Project structure
 
-## Project Structure
-
-```
+```text
 CodingPrep/
 ├── backend/
-│   ├── config/              Settings, Celery, WSGI/ASGI
-│   ├── accounts/            Authentication (JWT)
-│   ├── curriculum/          Categories, Topics, Lessons, Problems
-│   ├── engine/              Code execution, grading, AI interviewer
-│   ├── sandbox/             Docker containers (Python, Java, C)
+│   ├── accounts/            Authentication and profiles
+│   ├── config/              Django and Celery configuration
+│   ├── curriculum/          Curriculum models and API
+│   ├── engine/              Grading, sandboxing, and interviews
+│   ├── sandbox/             Python, Java, and C sandbox images
 │   └── requirements.txt
-│
 ├── frontend/
 │   ├── src/
-│   │   ├── components/      UI components
-│   │   ├── context/         AuthContext
-│   │   └── api.js           Backend API client
 │   └── package.json
-│
+├── docker-compose.yml
 └── README.md
 ```
 
-## Quick Start
+## Prerequisites
 
-### Prerequisites
-- Python 3.10+
-- Node.js 16+
+- Python 3.11+
+- Node.js 20+
 - PostgreSQL 13+
 - Redis
 - Docker
 
-### Backend Setup
+## Local development
+
+### Backend
 
 ```bash
 cd backend
-
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# macOS/Linux
+source venv/bin/activate
+
+# Windows PowerShell
+# .\venv\Scripts\Activate.ps1
 
 pip install -r requirements.txt
+```
 
-cp .env.example .env
-# Edit .env with your PostgreSQL and API keys
+Copy `.env.example` to `.env`, then set the database credentials,
+`SECRET_KEY`, and `GEMINI_API_KEY`. For local development, use
+`DEBUG=True`, `DB_HOST=localhost`, and
+`CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173`.
 
+```bash
 python manage.py migrate
 python manage.py seed_curriculum
-
 python manage.py runserver
 ```
 
-Backend runs on `http://localhost:8000`
+The API runs at `http://localhost:8000`.
 
-### Frontend Setup
+### Frontend
 
 ```bash
 cd frontend
+npm ci
+```
 
-npm install
+Create `frontend/.env` with:
 
-echo "REACT_APP_API_URL=http://127.0.0.1:8000" > .env
+```text
+VITE_API_URL=http://127.0.0.1:8000
+```
 
+Then start Vite:
+
+```bash
 npm run dev
 ```
 
-Frontend runs on `http://localhost:5173`
+The frontend runs at `http://localhost:5173`.
 
-### Celery Worker (for async code execution)
+### Celery worker
+
+Start Redis, then in a second terminal from `backend/` run:
 
 ```bash
-cd backend
-celery -A config worker -l info
+celery -A config worker --loglevel=info
 ```
 
-### Build Sandbox Images
+On Windows, use `celery -A config worker --loglevel=info -P solo`.
+
+### Sandbox images
+
+The code runner requires these image names:
 
 ```bash
 docker build -t codingprep-sandbox-python backend/sandbox/python/
@@ -107,195 +118,100 @@ docker build -t codingprep-sandbox-java backend/sandbox/java/
 docker build -t codingprep-sandbox-c backend/sandbox/c/
 ```
 
-## Environment Variables
+## Docker Compose
 
-### Backend (.env)
+Copy `backend/.env.example` to `backend/.env` and set strong, deployment-safe
+values, including `DEBUG=False`, `ALLOWED_HOSTS`, database credentials, and
+`GEMINI_API_KEY`.
 
+```bash
+docker compose --env-file backend/.env --profile sandbox build
+docker compose --env-file backend/.env up -d
 ```
-SECRET_KEY=your-secret-key
-DEBUG=True
+
+The stack serves the frontend on `http://localhost`. For deployment details
+and Docker-socket safety notes, see [backend/ASYNC_DEPLOYMENT.md](backend/ASYNC_DEPLOYMENT.md).
+
+## Environment variables
+
+Backend (`backend/.env`):
+
+```text
+SECRET_KEY=replace-with-a-long-random-value
+DEBUG=False
+ALLOWED_HOSTS=localhost,127.0.0.1
 
 DB_NAME=codingprep_db
 DB_USER=codingprep_user
-DB_PASSWORD=secure-password
+DB_PASSWORD=replace-with-a-strong-password
 DB_HOST=localhost
 DB_PORT=5432
 
 REDIS_URL=redis://localhost:6379/0
-
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-
 GEMINI_API_KEY=your-gemini-api-key
 ```
 
-### Frontend (.env)
+Frontend (`frontend/.env`):
 
-```
-REACT_APP_API_URL=http://127.0.0.1:8000
+```text
+VITE_API_URL=http://127.0.0.1:8000
 ```
 
-## API Endpoints
+## API endpoints
 
 ### Curriculum
-- `GET /api/categories/` - Get all categories with topics and problems
-- `GET /api/topics/` - Get all topics with lessons and problems
-- `GET /api/problems/{id}/` - Get problem details
 
-### Code Execution
-- `POST /api/engine/run/` - Run code against sample test cases
-- `POST /api/engine/submit/` - Submit code against all test cases
-- `GET /api/engine/submission/{id}/` - Check submission status
-- `GET /api/engine/testcases/{problem_id}/` - Get sample test cases
-- `GET /api/engine/saved-code/{problem_id}/` - Load saved code
-- `PUT /api/engine/saved-code/{problem_id}/` - Save code
+- `GET /api/categories/`
+- `GET /api/topics/`
+- `GET /api/lessons/`
+- `GET /api/problems/{id}/`
 
-### AI Interviews
-- `POST /api/engine/interview/start/` - Start new interview
-- `POST /api/engine/interview/chat/` - Send message to AI interviewer
-- `GET /api/engine/interview/next/{problem_id}/` - Get next problem prompt
-- `POST /api/engine/interview/grade/` - Grade interview performance
+### Code execution
+
+- `POST /api/engine/run/` — run against sample test cases
+- `POST /api/engine/submit/` — queue a submission against all test cases
+- `GET /api/engine/submission/{id}/` — poll a submission result
+- `GET /api/engine/testcases/{problem_id}/` — retrieve sample test cases
+- `GET` / `PUT /api/engine/saved-code/{problem_id}/` — load or save code
+
+### AI interviews
+
+- `POST /api/engine/interview/start/`
+- `POST /api/engine/interview/chat/`
+- `GET /api/engine/interview/next/{problem_id}/`
+- `POST /api/engine/interview/grade/`
 
 ### Authentication
-- `POST /api/accounts/register/` - Register new user
-- `POST /api/accounts/login/` - Login and get JWT tokens
-- `POST /api/accounts/refresh/` - Refresh access token
-- `GET /api/accounts/profile/` - Get user profile
-- `GET /api/accounts/submissions/` - Get user's submissions
 
-## Features
+- `POST /api/accounts/register/`
+- `POST /api/accounts/login/`
+- `POST /api/accounts/refresh/`
+- `GET /api/accounts/profile/`
+- `GET /api/accounts/submissions/`
 
-### Learn Path
-- Browse curriculum organized by topics and difficulty
-- Read lessons with markdown formatting
-- View example problems for each topic
+## Code execution limits
 
-### Practice
-- Solve coding problems in Python, Java, or C
-- See sample test cases with inputs and outputs
-- Run code against sample cases for immediate feedback
-- Submit for grading against all test cases
-- Auto-save code for each problem
+- 100 KB maximum submitted-code size
+- 128 MB sandbox memory limit
+- 0.5 CPU limit
+- 20-second execution timeout
+- Network-disabled sandbox containers
+- Temporary sandbox filesystem removed after each execution
 
-### Code Execution
-- Secure Docker-based sandboxing:
-  - 128MB memory limit
-  - 0.5 CPU cores
-  - 20-second timeout
-  - Network isolation
-  - No filesystem persistence
-- Support for multiple languages
-- Automatic type inference for return values
-- Detailed error messages and output
+Java and C use problem-defined function signatures and type metadata. C is
+currently limited to scalar `int`, `long`, and `double` parameters and return
+values.
 
-### AI Mock Interviews
-- Select difficulty level (Easy, Intermediate, Pro)
-- Conversational AI guidance through problems
-- AI checks understanding before coding
-- Code review and feedback
-- Complexity analysis questions
-- Performance grading
-
-## Security
-
-- JWT authentication with refresh tokens (45min access, 7 days refresh)
-- Docker sandboxing with resource limits
-- CORS protection
-- Code size limits (100KB max)
-- Request payload limits (5MB max)
-- Password hashing with Django validators
-
-## Performance
-
-- Prefetch queries for curriculum
-- Async code execution with Celery
-- 30 submissions per minute rate limit
-- Exponential backoff polling from frontend
-- Auto-save debouncing (2 seconds)
-- Optimized Monaco editor configuration
-
-## Code Execution Flow
-
-1. User submits code with language selection
-2. Backend validates input (size, language)
-3. Submission record created with PENDING status
-4. Celery task queued for async execution
-5. Docker container spawned for execution
-6. Code compiled (if Java/C) or interpreted (Python)
-7. Test cases executed sequentially
-8. Results compared and stored
-9. Frontend polls for status with exponential backoff
-10. Results displayed when complete
-
-## Troubleshooting
-
-**Frontend stuck on "Loading"**
-- Verify backend is running: `curl http://127.0.0.1:8000/api/categories/`
-- Check browser console for errors
-- Ensure .env has correct API_URL
-
-**Celery tasks not executing**
-- Verify Redis is running: `redis-cli ping`
-- Check Celery worker logs for errors
-- Restart Celery worker
-
-**Docker container errors**
-- Verify images are built: `docker images | grep codingprep`
-- Check Docker daemon is running
-- Rebuild images with `--no-cache` flag
-
-**Database connection failed**
-- Verify PostgreSQL is running
-- Check .env credentials match PostgreSQL setup
-- Run `python manage.py migrate` to create tables
-
-**Permission denied running Docker**
-- Add user to docker group: `sudo usermod -aG docker $USER`
-
-## Known Limitations
-
-- C language support limited to scalar types (int, long, double)
-- No array support for C problems
-- Synchronous polling instead of WebSockets
-- One problem per interview session
-
-## Future Enhancements
-
-- WebSocket support for real-time updates
-- Additional programming languages (Go, Rust, JavaScript)
-- Leaderboard with rankings
-- Community discussion forums
-- Company-specific problem paths
-- Video solutions
-- Team collaboration features
-- Mobile app
-
-## Testing
+## Testing and checks
 
 ```bash
-# Backend tests
+# Backend
 cd backend
 python manage.py test
 
-# Frontend tests
+# Frontend
 cd frontend
-npm test
+npm run lint
+npm run build
 ```
-
-## Development Tools
-
-**Django Admin:** http://localhost:8000/admin/
-**Celery Flower:** Run `celery -A config flower` and visit http://localhost:5555
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Support
-
-- Report issues on GitHub Issues
-- Ask questions in GitHub Discussions
-- For security issues, email privately
-
----
-
-Built for coding interview preparation. Start your journey today.

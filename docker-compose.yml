@@ -1,0 +1,105 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-codingprep_db}
+      POSTGRES_USER: ${DB_USER:-codingprep_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-codingprep_user}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  migrate:
+    build: ./backend
+    restart: "no"
+    command: python manage.py migrate --noinput
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+  
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+  
+  celery_worker:
+    build: ./backend
+    restart: unless-stopped
+    command: celery -A config worker --loglevel=info
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      backend:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+  
+  sandbox-python:
+    image: codingprep-sandbox-python
+    build: ./backend/sandbox/python
+    profiles: ["sandbox"]
+
+  sandbox-java:
+    image: codingprep-sandbox-java
+    build: ./backend/sandbox/java
+    profiles: ["sandbox"]
+
+  sandbox-c:
+    image: codingprep-sandbox-c
+    build: ./backend/sandbox/c
+    profiles: ["sandbox"]
+
+volumes:
+  postgres_data:
+
+
+

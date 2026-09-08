@@ -28,9 +28,13 @@ CELERY_RESULT_BACKEND = config('REDIS_URL', default='redis://localhost:6379/0')
 SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config("DEBUG", default=True, cast=bool)
+DEBUG = config("DEBUG", default=False, cast=bool)
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in config("ALLOWED_HOSTS", default="localhost,127.0.0.1").split(",")
+    if host.strip()
+]
 
 
 # Application definition
@@ -165,8 +169,10 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
-        'DEFAULT_THROTTLE_RATES': {
+    'DEFAULT_THROTTLE_RATES': {
         'code_execution': '30/min',
+        'authentication': '10/min',
+        'ai_interview': '20/hour',
     }
 }
 
